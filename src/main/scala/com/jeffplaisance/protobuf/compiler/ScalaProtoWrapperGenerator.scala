@@ -11,27 +11,26 @@
 
 package com.jeffplaisance.protobuf.compiler
 import google.protobuf.compiler.Plugin._
-import collection.JavaConversions
+import collection.JavaConverters._
 import google.protobuf.compiler.Plugin.CodeGeneratorResponse.File
 import collection.mutable.{ListBuffer, LinkedHashMap}
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
-import com.google.protobuf.Descriptors.{FieldDescriptor, Descriptor, FileDescriptor}
 import java.io.{StringReader, BufferedReader, StringWriter, PrintWriter}
+import com.google.protobuf.Descriptors.{EnumDescriptor, FieldDescriptor, Descriptor, FileDescriptor}
 
 /**
  * @author jplaisance
  */
 
 object ScalaProtoWrapperGenerator {
-    import JavaConversions.asIterator
     def main(args: Array[String]) {
         val request = CodeGeneratorRequest.parseFrom(System.in)
         val protoFiles = request.getProtoFileList
         val builtDeps = new LinkedHashMap[String, FileDescriptor]
-        protoFiles.iterator.foreach(protoFile => {
+        protoFiles.asScala.foreach(protoFile => {
             val deps = protoFile.getDependencyList
             val descriptors = Array.newBuilder[FileDescriptor]
-            deps.iterator.foreach(dep => {
+            deps.asScala.foreach(dep => {
                 descriptors+=builtDeps.get(dep).get
             })
             builtDeps.put(protoFile.getName, FileDescriptor.buildFrom(protoFile, descriptors.result))
@@ -53,41 +52,70 @@ object ScalaProtoWrapperGenerator {
         out.println("import com.jeffplaisance.protobuf.{TypedMessage,TypedMessageParser,TypedMessageBuilder}")
         out.println("import collection.mutable.ListBuffer")
         out.println("import java.io.{InputStream, OutputStream}")
-        out.println("import collection.JavaConversions")
+        out.println("import collection.JavaConverters._")
         out.println("import com.google.protobuf.ByteString")
         out.println
-        fileDescriptor.getMessageTypes.iterator.foreach(messageType => {
+
+        fileDescriptor.getMessageTypes.asScala.foreach(messageType => {
             out.print(makeClassesForDescriptor(messageType, javaClass))
         })
+        fileDescriptor.getEnumTypes.asScala.foreach(enumType =>
+          out.print(makeClassesForEnumDescriptor(enumType, javaClass))
+        )
         stringWriter.toString
     }
 
-    def makeClassesForDescriptor(descriptor:Descriptor, javaClass:String):String = {
+    def makeClassesForEnumDescriptor(descriptor: EnumDescriptor, javaClass: String): String = {
+      val enumName = descriptor.getName
+      val enumSubClass = javaClass + "." + getContainingType(descriptor.getContainingType) + enumName
+      val values =  descriptor.getValues.asScala
+
+      val stringWriter = new StringWriter()
+      val out = new PrintWriter(stringWriter)
+
+      out.println("sealed abstract class " + enumName + " (val value: Int) {")
+      out.println("    def javaMessage = " + enumSubClass + ".valueOf(value)")
+      out.println("}")
+      out.println("object " + enumName + "{")
+      values.foreach { valueDesc =>
+        out.println("    case object " + valueDesc.getName + " extends " + enumName + "(" + valueDesc.getNumber + ")")
+      }
+      out.println("    def javaToScala(message:" + enumSubClass + "):" + enumName + " = message match {")
+      values.foreach { valueDesc =>
+        out.println("        case " + enumSubClass + "." + valueDesc.getName + " => " + valueDesc.getName)
+      }
+      out println ("    }")
+      out.println("}")
+
+      stringWriter.toString
+    }
+
+  def makeClassesForDescriptor(descriptor:Descriptor, javaClass:String):String = {
         val stringWriter = new StringWriter()
         val out = new PrintWriter(stringWriter)
-        val fields = descriptor.getFields.iterator.toList
+        val fields = descriptor.getFields.asScala.toList
 
         val requiredFields = fields.filter(field => field.isRequired)
         val requiredFieldTypes = getFieldTypes(requiredFields, javaClass)
-        val requiredFieldDecls = requiredFields.zip(requiredFieldTypes.unzip._1).map(x => x._1.getName+":"+x._2)
+        val requiredFieldDecls = requiredFields.zip(requiredFieldTypes.unzip._1).map(x => x._1.getName.normDown+":"+x._2)
         val requiredFieldVars = requiredFieldDecls.map(x => "var "+x)
 
         val defaultFields = fields.filter(field => field.isOptional && field.hasDefaultValue)
         val defaultFieldTypes = getFieldTypes(defaultFields, javaClass)
-        val defaultFieldDecls = defaultFields.zip(defaultFieldTypes.unzip._1).map(x => x._1.getName+":"+x._2)
+        val defaultFieldDecls = defaultFields.zip(defaultFieldTypes.unzip._1).map(x => x._1.getName.normDown+":"+x._2)
         val defaultFieldDefaults = defaultFieldDecls.zip(defaultFields).map(x => x._1+" = "+x._2.getDefaultValue)
         val defaultFieldVars = defaultFieldDefaults.map(x => "var "+x)
 
         val optionalFields = fields.filter(field => field.isOptional && !field.hasDefaultValue)
         val optionalFieldTypes = getFieldTypes(optionalFields, javaClass)
-        val optionalFieldDecls = optionalFields.zip(optionalFieldTypes.unzip._1).map(x => x._1.getName+":Option["+x._2+"]")
+        val optionalFieldDecls = optionalFields.zip(optionalFieldTypes.unzip._1).map(x => x._1.getName.normDown+":Option["+x._2+"]")
         val optionalFieldDefaults = optionalFieldDecls.map(x => x+" = None")
         val optionalFieldVars = optionalFieldDefaults.map(x => "var "+x)
 
         val repeatedFields = fields.filter(field => field.isRepeated)
         val repeatedFieldTypes = getFieldTypes(repeatedFields, javaClass)
-        val repeatedFieldDefaults = repeatedFields.zip(repeatedFieldTypes.unzip._1).map(x => x._1.getName+":List["+x._2+"] = Nil")
-        val repeatedFieldListBuffers = repeatedFields.zip(repeatedFieldTypes.unzip._1).map(x => "val "+x._1.getName+":ListBuffer["+x._2+"] = new ListBuffer["+x._2+"]")
+        val repeatedFieldDefaults = repeatedFields.zip(repeatedFieldTypes.unzip._1).map(x => x._1.getName.normDown+":List["+x._2+"] = Nil")
+        val repeatedFieldListBuffers = repeatedFields.zip(repeatedFieldTypes.unzip._1).map(x => "val "+x._1.getName.normDown+":ListBuffer["+x._2+"] = new ListBuffer["+x._2+"]")
 
         val name = descriptor.getName
         val javaSubClass = javaClass+"."+getContainingType(descriptor.getContainingType)+name
@@ -101,15 +129,15 @@ object ScalaProtoWrapperGenerator {
         out.println("        val builder = "+javaSubClass+".newBuilder")
         for ((field, isMessage) <- requiredFields.zip(requiredFieldTypes.unzip._2)++defaultFields.zip(defaultFieldTypes.unzip._2)) {
             val fieldName = field.getName
-            out.println("        builder.set"+upcaseFirstLetter(fieldName)+"("+fieldName+(if(isMessage)".javaMessage" else "")+")")
+            out.println("        builder.set"+fieldName.normUp+"("+fieldName.normDown+(if(isMessage)".javaMessage" else "")+")")
         }
         for ((field, isMessage) <- optionalFields.zip(optionalFieldTypes.unzip._2)) {
             val fieldName = field.getName
-            out.println("        "+fieldName+".foreach(x => builder.set"+upcaseFirstLetter(fieldName)+"(x"+(if(isMessage)".javaMessage" else "")+"))")
+            out.println("        "+fieldName.normDown+".foreach(x => builder.set"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+"))")
         }
         for ((field, isMessage) <- repeatedFields.zip(repeatedFieldTypes.unzip._2)) {
             val fieldName = field.getName
-            out.println("        "+fieldName+".foreach(x => builder.add"+upcaseFirstLetter(fieldName)+"(x"+(if(isMessage)".javaMessage" else "")+"))")
+            out.println("        "+fieldName.normDown+".foreach(x => builder.add"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+"))")
         }
         out.println("        builder.build")
         out.println("    }")
@@ -125,7 +153,7 @@ object ScalaProtoWrapperGenerator {
         out.println("    def get(i:Int):Any = {")
         if (!fields.isEmpty) {
             out.println("        i match {")
-            fields.foreach(field => out.println("            case "+field.getNumber+" => "+field.getName))
+            fields.foreach(field => out.println("            case "+field.getNumber+" => "+field.getName.normDown))
             out.println("        }")
         }
         out.println("    }")
@@ -133,8 +161,8 @@ object ScalaProtoWrapperGenerator {
         out.println("    def copyAndSet(i:Int, fieldValue:Any):"+name+" = {")
         if (!requiredFields.isEmpty || !defaultFields.isEmpty || !optionalFields.isEmpty) {
             out.println("        i match {")
-            (requiredFields++defaultFields).foreach(field => out.println("            case "+field.getNumber+" => copy("+field.getName+" = fieldValue.asInstanceOf["+getTypeString(field, javaClass)._1+"])"))
-            optionalFields.foreach(field => out.println("            case "+field.getNumber+" => copy("+field.getName+" = fieldValue.asInstanceOf[Option["+getTypeString(field, javaClass)._1+"]])"))
+            (requiredFields++defaultFields).foreach(field => out.println("            case "+field.getNumber+" => copy("+field.getName.normDown+" = fieldValue.asInstanceOf["+getTypeString(field, javaClass)._1+"])"))
+            optionalFields.foreach(field => out.println("            case "+field.getNumber+" => copy("+field.getName.normDown+" = fieldValue.asInstanceOf[Option["+getTypeString(field, javaClass)._1+"]])"))
             out.println("        }")
         } else out.println("        this")
         out.println("    }")
@@ -153,27 +181,33 @@ object ScalaProtoWrapperGenerator {
         out.println("        javaToScala(message)")
         out.println("    }")
         out.println
+
+        descriptor.getEnumTypes.asScala.foreach { enumDesc =>
+          out.println(makeClassesForEnumDescriptor(enumDesc, javaClass))
+        }
+
+        out.println
         out.println("    def javaToScala(message:"+javaSubClass+"):"+name+" = {")
         val requiredAndDefaultGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- requiredFields.zip(requiredFieldTypes)++defaultFields.zip(defaultFieldTypes)) {
             val fieldName = field.getName
-            requiredAndDefaultGetters+=((if (isMessage)typeName+".javaToScala(" else "")+"message.get"+upcaseFirstLetter(fieldName)+"()"+(if (isMessage) ")" else ""))
+            requiredAndDefaultGetters+=((if (isMessage)typeName+".javaToScala(" else "")+"message.get"+fieldName.normUp+"()"+(if (isMessage) ")" else ""))
         }
         val optionalGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- optionalFields.zip(optionalFieldTypes)) {
             val fieldName = field.getName
-            val upcase = upcaseFirstLetter(fieldName)
+            val upcase = fieldName.normUp
             optionalGetters+=("(if (message.has"+upcase+"()) Some("+(if (isMessage) typeName+".javaToScala(" else "")+"message.get"+upcase+"())"+(if (isMessage) ")" else "")+" else None)")
         }
         val repeatedGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- repeatedFields.zip(repeatedFieldTypes)) {
             val fieldName = field.getName
-            repeatedGetters+=("JavaConversions.asIterator(message.get"+upcaseFirstLetter(fieldName)+"List().iterator)"+(if (isMessage) ".map(x => "+typeName+".javaToScala(x))" else "")+".toList")
+            repeatedGetters+=("message.get"+fieldName.normUp+"List().asScala"+(if (isMessage) ".map(x => "+typeName+".javaToScala(x))" else "")+".toList")
         }
         val spaces2 = " "*(name.length+13)
         out.println("        new "+name+"("+(requiredAndDefaultGetters++optionalGetters++repeatedGetters).mkString(",\n"+spaces2)+"\n        )")
         out.println("    }")
-        descriptor.getNestedTypes.iterator.foreach(x => out.print(indentString(makeClassesForDescriptor(x, javaClass))))
+        descriptor.getNestedTypes.asScala.foreach(x => out.print(indentString(makeClassesForDescriptor(x, javaClass))))
         out.println("}")
         out.println
 
@@ -188,14 +222,14 @@ object ScalaProtoWrapperGenerator {
         out.println("    def set(i:Int, fieldValue:Any):Unit = {")
         if (!requiredFields.isEmpty || !optionalFields.isEmpty) {
             out.println("        i match {")
-            (requiredFields++defaultFields).foreach(field => out.println("            case "+field.getNumber+" => "+field.getName+" = fieldValue.asInstanceOf["+getTypeString(field, javaClass)._1+"]"))
-            optionalFields.foreach(field => out.println("            case "+field.getNumber+" => "+field.getName+" = fieldValue.asInstanceOf[Option["+getTypeString(field, javaClass)._1+"]]"))
+            (requiredFields++defaultFields).foreach(field => out.println("            case "+field.getNumber+" => "+field.getName.normDown+" = fieldValue.asInstanceOf["+getTypeString(field, javaClass)._1+"]"))
+            optionalFields.foreach(field => out.println("            case "+field.getNumber+" => "+field.getName.normDown+" = fieldValue.asInstanceOf[Option["+getTypeString(field, javaClass)._1+"]]"))
             out.println("        }")
         }
         out.println("    }")
         out.println
         out.println("    def build:"+name+" = {")
-        out.println("        new "+name+"("+((requiredFields++defaultFields++optionalFields).map(x => x.getName())++repeatedFields.map(x => x.getName()+".result")).mkString(",\n"+spaces2)+"\n        )")
+        out.println("        new "+name+"("+((requiredFields++defaultFields++optionalFields).map(x => x.getName.normDown)++repeatedFields.map(x => x.getName.normDown+".result")).mkString(",\n"+spaces2)+"\n        )")
         out.println("    }")
         out.println("}")
         stringWriter.toString
@@ -221,6 +255,10 @@ object ScalaProtoWrapperGenerator {
         if (descriptor != null) getContainingType(descriptor.getContainingType)+descriptor.getName+"." else ""
     }
 
+    def getContainingType(descriptor:EnumDescriptor):String = {
+        if (descriptor != null) getContainingType(descriptor.getContainingType)+descriptor.getName+"." else ""
+    }
+
     def getTypeString(field:FieldDescriptor, javaClass:String):(String,Boolean) = {
         field.getJavaType match {
             case JavaType.BOOLEAN => ("Boolean", false)
@@ -228,7 +266,7 @@ object ScalaProtoWrapperGenerator {
             case JavaType.DOUBLE => ("Double", false)
             case JavaType.ENUM =>
                 val enumType = field.getEnumType
-                (javaClass+"."+getContainingType(enumType.getContainingType)+enumType.getName, false)
+                (getContainingType(enumType.getContainingType)+enumType.getName, true)
             case JavaType.FLOAT => ("Float", false)
             case JavaType.INT => ("Int", false)
             case JavaType.LONG => ("Long", false)
@@ -239,5 +277,20 @@ object ScalaProtoWrapperGenerator {
         }
     }
 
-    def upcaseFirstLetter(str:String):String = str.charAt(0).toUpper+(if (str.length > 1) str.substring(1, str.length) else "")
+
+    private class Normalizable(s: String) {
+      def normUp: String = normalize(true)
+      def normDown: String=  normalize(false)
+
+      private def normalize(firstUp: Boolean):String = {
+        var mustUp = firstUp
+        ("" /: s)((s, c) => (c, mustUp) match {
+          case ('_', _) => mustUp = true; s
+          case (a, true) => mustUp = false; s + a.toUpper
+          case (a, false) => s + a
+        })
+      }
+    }
+
+    implicit private def string2normalizable(s: String): Normalizable = new Normalizable(s)
 }
