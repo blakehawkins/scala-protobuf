@@ -73,16 +73,16 @@ object ScalaProtoWrapperGenerator {
       val stringWriter = new StringWriter()
       val out = new PrintWriter(stringWriter)
 
-      out.println("sealed abstract class " + enumName + " (val value: Int) {")
-      out.println("    def javaMessage = " + enumSubClass + ".valueOf(value)")
+      out.println("sealed abstract class %s(val value: Int) {".format(enumName))
+      out.println("    def javaMessage = %s.valueOf(value)".format(enumSubClass))
       out.println("}")
-      out.println("object " + enumName + "{")
+      out.println("object %s{".format(enumName))
       values.foreach { valueDesc =>
-        out.println("    case object " + valueDesc.getName + " extends " + enumName + "(" + valueDesc.getNumber + ")")
+        out.println("    case object %s extends %s(%d)".format(valueDesc.getName, enumName, valueDesc.getNumber))
       }
-      out.println("    def javaToScala(message:" + enumSubClass + "):" + enumName + " = message match {")
+      out.println("    def javaToScala(message: %s): %s = message match {".format(enumSubClass, enumName))
       values.foreach { valueDesc =>
-        out.println("        case " + enumSubClass + "." + valueDesc.getName + " => " + valueDesc.getName)
+        out.println("        case %s.%s => %s".format(enumSubClass, valueDesc.getName, valueDesc.getName))
       }
       out println ("    }")
       out.println("}")
