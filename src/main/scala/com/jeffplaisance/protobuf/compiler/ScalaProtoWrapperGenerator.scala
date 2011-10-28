@@ -133,24 +133,20 @@ object ScalaProtoWrapperGenerator {
         }
         for ((field, isMessage) <- optionalFields.zip(optionalFieldTypes.unzip._2)) {
             val fieldName = field.getName
-            out.println("        "+fieldName.normDown+".foreach(x => builder.set"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+"))")
+            out.println("        "+fieldName.normDown+" foreach {x => builder.set"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+")}")
         }
         for ((field, isMessage) <- repeatedFields.zip(repeatedFieldTypes.unzip._2)) {
             val fieldName = field.getName
-            out.println("        "+fieldName.normDown+".foreach(x => builder.add"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+"))")
+            out.println("        "+fieldName.normDown+" foreach {x => builder.add"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+")}")
         }
         out.println("        builder.build")
         out.println("    }")
         out.println
         out.println("    def toByteArray = javaMessage.toByteArray")
         out.println
-        out.println("    def writeTo(outputStream:OutputStream):Unit = {")
-        out.println("        javaMessage.writeTo(outputStream)")
-        out.println("    }")
+        out.println("    def writeTo(outputStream:OutputStream) { javaMessage.writeTo(outputStream) }")
         out.println
-        out.println("    def writeDelimitedTo(outputStream:OutputStream):Unit = {")
-        out.println("        javaMessage.writeDelimitedTo(outputStream)")
-        out.println("    }")
+        out.println("    def writeDelimitedTo(outputStream:OutputStream) { javaMessage.writeDelimitedTo(outputStream) }")
         out.println
         out.println("    def get(i:Int):Any = {")
         if (!fields.isEmpty) {
@@ -198,13 +194,13 @@ object ScalaProtoWrapperGenerator {
         val requiredAndDefaultGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- requiredFields.zip(requiredFieldTypes)++defaultFields.zip(defaultFieldTypes)) {
             val fieldName = field.getName
-            requiredAndDefaultGetters+=((if (isMessage)typeName+".javaToScala(" else "")+"message.get"+fieldName.normUp+"()"+(if (isMessage) ")" else ""))
+            requiredAndDefaultGetters+=((if (isMessage)typeName+".javaToScala(" else "")+"message.get"+fieldName.normUp+(if (isMessage) ")" else ""))
         }
         val optionalGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- optionalFields.zip(optionalFieldTypes)) {
             val fieldName = field.getName
             val upcase = fieldName.normUp
-            optionalGetters+=("(if (message.has"+upcase+"()) Some("+(if (isMessage) typeName+".javaToScala(" else "")+"message.get"+upcase+"())"+(if (isMessage) ")" else "")+" else None)")
+            optionalGetters+=("(if (message.has"+upcase+") Some("+(if (isMessage) typeName+".javaToScala(" else "")+"message.get"+upcase+")"+(if (isMessage) ")" else "")+" else None)")
         }
         val repeatedGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- repeatedFields.zip(repeatedFieldTypes)) {
@@ -226,7 +222,7 @@ object ScalaProtoWrapperGenerator {
             out.println("    "+field)
         }
         out.println
-        out.println("    def set(i:Int, fieldValue:Any):Unit = {")
+        out.println("    def set(i:Int, fieldValue:Any) {")
         if (!requiredFields.isEmpty || !optionalFields.isEmpty) {
             out.println("        i match {")
             (requiredFields++defaultFields).foreach(field => out.println("            case "+field.getNumber+" => "+field.getName.normDown+" = fieldValue.asInstanceOf["+getTypeString(field, javaClass)._1+"]"))
