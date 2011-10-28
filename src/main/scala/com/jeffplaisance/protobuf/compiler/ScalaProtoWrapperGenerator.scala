@@ -142,6 +142,8 @@ object ScalaProtoWrapperGenerator {
         out.println("        builder.build")
         out.println("    }")
         out.println
+        out.println("    def toByteArray = javaMessage.toByteArray")
+        out.println
         out.println("    def writeTo(outputStream:OutputStream):Unit = {")
         out.println("        javaMessage.writeTo(outputStream)")
         out.println("    }")
@@ -170,6 +172,11 @@ object ScalaProtoWrapperGenerator {
         out.println
 
         out.println("object "+name+" extends TypedMessageParser["+name+", "+javaSubClass+"] {")
+        out.println
+        out.println("    def parseFrom(data: Array[Byte]):"+name+" = {")
+        out.println("      val message = "+javaSubClass+" parseFrom data")
+        out.println("      javaToScala(message)")
+        out.println("    }")
         out.println
         out.println("    def parseFrom(inputStream:InputStream):"+name+" = {")
         out.println("        val message = "+javaSubClass+".parseFrom(inputStream)")
