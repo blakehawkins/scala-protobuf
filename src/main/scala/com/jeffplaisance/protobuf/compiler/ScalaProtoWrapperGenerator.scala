@@ -48,7 +48,9 @@ object ScalaProtoWrapperGenerator {
         out.println("package "+fileDescriptor.getPackage)
         val options = fileDescriptor.getOptions
         val javaClass = options.getJavaOuterClassname
-        out.println("import "+options.getJavaPackage+"."+javaClass)
+        if (options.getJavaPackage != fileDescriptor.getPackage) {
+          out.println("import "+options.getJavaPackage+"."+javaClass)
+        }
         out.println("import com.jeffplaisance.protobuf.{TypedMessage,TypedMessageParser,TypedMessageBuilder}")
         out.println("import collection.mutable.ListBuffer")
         out.println("import java.io.{InputStream, OutputStream}")
