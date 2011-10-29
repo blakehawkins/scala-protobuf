@@ -27,6 +27,7 @@ trait Message {
     type A <: TypedMessage[A,B]
     type B <: com.google.protobuf.Message
     def get(i:Int):Any
+    def toByteArray:Array[Byte]
     def writeTo(outputStream:OutputStream):Unit
     def writeDelimitedTo(outputStream:OutputStream):Unit
     def javaMessage:B
@@ -54,6 +55,7 @@ trait MessageParser {
     type A <: TypedMessage[A, B]
     type B <: com.google.protobuf.Message
     def parseFrom(inputStream:InputStream):A
+    def parseFrom(data:Array[Byte]):A
     def parseDelimitedFrom(inputStream:InputStream):A
     def javaToScala(b:B):A
 }
