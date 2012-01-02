@@ -8,6 +8,7 @@ object ScalaProtoBufBuild extends Build {
   organization := "com.jeffplaisance",
   name := "scala-protobuf",
   version := "0.2",
+  scalaVersion := "2.9.1",
   publishTo := Some(Resolver.file("Github Pages", Path.userHome / "git" / "dimbleby.github.com" / "maven" asFile)(Patterns(true, Resolver.mavenStyleBasePattern))),
   publishMavenStyle := true,
   scalacOptions ++= Seq("-deprecation", "-unchecked")
