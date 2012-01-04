@@ -234,7 +234,7 @@ object ScalaProtoWrapperGenerator {
         out.println("    }")
         out.println
         out.println("    def build:"+name+" = {")
-        out.println("        new "+name+"("+((requiredFields++defaultFields++optionalFields).map(x => x.getName.normDown)++repeatedFields.map(x => x.getName.normDown+".result")).mkString(",\n"+spaces2)+"\n        )")
+        out.println("        new "+name+"("+((requiredFields++defaultFields++optionalFields).map(x => x.getName.normDown)++repeatedFields.map(x => x.getName.normDown+".result()")).mkString(",\n"+spaces2)+"\n        )")
         out.println("    }")
         out.println("}")
         stringWriter.toString
