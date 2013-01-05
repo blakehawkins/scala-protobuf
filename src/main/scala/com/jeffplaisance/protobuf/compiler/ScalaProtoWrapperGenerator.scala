@@ -207,7 +207,7 @@ object ScalaProtoWrapperGenerator {
         val repeatedGetters = new ListBuffer[String]
         for ((field, (typeName, isMessage)) <- repeatedFields.zip(repeatedFieldTypes)) {
             val fieldName = field.getName
-            repeatedGetters+=("message.get"+fieldName.normUp+"List.asScala"+(if (isMessage) " map { "+typeName+".javaToScala(_) }" else "")+" toList")
+            repeatedGetters+=("(message.get"+fieldName.normUp+"List.asScala"+(if (isMessage) " map { "+typeName+".javaToScala(_) })" else ")")+".toList")
         }
         val spaces2 = " "*(name.length+13)
         out.println("        new "+name+"("+(requiredAndDefaultGetters++optionalGetters++repeatedGetters).mkString(",\n"+spaces2)+"\n        )")
