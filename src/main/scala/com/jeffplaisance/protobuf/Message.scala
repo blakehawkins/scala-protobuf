@@ -13,6 +13,7 @@ package com.jeffplaisance.protobuf
 
 import com.google.protobuf.ByteString
 import java.io.{InputStream, OutputStream}
+import scala.language.implicitConversions
 
 /**
  * @author jplaisance

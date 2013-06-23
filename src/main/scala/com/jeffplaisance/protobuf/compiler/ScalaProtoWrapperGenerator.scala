@@ -17,6 +17,7 @@ import collection.mutable.{ListBuffer, LinkedHashMap}
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
 import java.io.{StringReader, BufferedReader, StringWriter, PrintWriter}
 import com.google.protobuf.Descriptors.{EnumDescriptor, FieldDescriptor, Descriptor, FileDescriptor}
+import scala.language.implicitConversions
 
 /**
  * @author jplaisance

@@ -7,11 +7,11 @@ object ScalaProtoBufBuild extends Build {
   lazy val mainSettings: Seq[Project.Setting[_]] = Defaults.defaultSettings ++ Seq(
   organization := "com.jeffplaisance",
   name := "scala-protobuf",
-  version := "0.2",
-  crossScalaVersions := Seq("2.9.1", "2.9.1-1", "2.9.2", "2.10.0"),
+  version := "0.3",
+  scalaVersion := "2.10.2",
   crossVersion := CrossVersion.binary,
   publishTo := Some(Resolver.file("Github Pages", Path.userHome / "git" / "dimbleby.github.com" / "maven" asFile)(Patterns(true, Resolver.mavenStyleBasePattern))),
   publishMavenStyle := true,
-  scalacOptions ++= Seq("-deprecation", "-unchecked")
+  scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature")
   )
 }
