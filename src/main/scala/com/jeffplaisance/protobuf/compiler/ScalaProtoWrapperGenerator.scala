@@ -10,13 +10,13 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 package com.jeffplaisance.protobuf.compiler
-import google.protobuf.compiler.Plugin._
 import collection.JavaConverters._
-import google.protobuf.compiler.Plugin.CodeGeneratorResponse.File
 import collection.mutable.{ListBuffer, LinkedHashMap}
+import com.google.protobuf.compiler.PluginProtos._
+import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.File
+import com.google.protobuf.Descriptors.{EnumDescriptor, FieldDescriptor, Descriptor, FileDescriptor}
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
 import java.io.{StringReader, BufferedReader, StringWriter, PrintWriter}
-import com.google.protobuf.Descriptors.{EnumDescriptor, FieldDescriptor, Descriptor, FileDescriptor}
 import scala.language.implicitConversions
 
 /**
