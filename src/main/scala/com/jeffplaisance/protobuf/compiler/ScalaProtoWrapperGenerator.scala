@@ -100,25 +100,25 @@ object ScalaProtoWrapperGenerator {
 
         val requiredFields = fields.filter(field => field.isRequired)
         val requiredFieldTypes = getFieldTypes(requiredFields, javaClass)
-        val requiredFieldDecls = requiredFields.zip(requiredFieldTypes.unzip._1).map(x => x._1.getName.normDown+":"+x._2)
+        val requiredFieldDecls = requiredFields.zip(requiredFieldTypes.unzip3._1).map(x => x._1.getName.normDown+":"+x._2)
         val requiredFieldVars = requiredFieldDecls.map(x => "var "+x)
 
         val defaultFields = fields.filter(field => field.isOptional && field.hasDefaultValue)
         val defaultFieldTypes = getFieldTypes(defaultFields, javaClass)
-        val defaultFieldDecls = defaultFields.zip(defaultFieldTypes.unzip._1).map(x => x._1.getName.normDown+":"+x._2)
+        val defaultFieldDecls = defaultFields.zip(defaultFieldTypes.unzip3._1).map(x => x._1.getName.normDown+":"+x._2)
         val defaultFieldDefaults = defaultFieldDecls.zip(defaultFields).map(x => x._1+" = "+x._2.getDefaultValue)
         val defaultFieldVars = defaultFieldDefaults.map(x => "var "+x)
 
         val optionalFields = fields.filter(field => field.isOptional && !field.hasDefaultValue)
         val optionalFieldTypes = getFieldTypes(optionalFields, javaClass)
-        val optionalFieldDecls = optionalFields.zip(optionalFieldTypes.unzip._1).map(x => x._1.getName.normDown+":Option["+x._2+"]")
+        val optionalFieldDecls = optionalFields.zip(optionalFieldTypes.unzip3._1).map(x => x._1.getName.normDown+":Option["+x._2+"]")
         val optionalFieldDefaults = optionalFieldDecls.map(x => x+" = None")
         val optionalFieldVars = optionalFieldDefaults.map(x => "var "+x)
 
         val repeatedFields = fields.filter(field => field.isRepeated)
         val repeatedFieldTypes = getFieldTypes(repeatedFields, javaClass)
-        val repeatedFieldDefaults = repeatedFields.zip(repeatedFieldTypes.unzip._1).map(x => x._1.getName.normDown+":List["+x._2+"] = Nil")
-        val repeatedFieldListBuffers = repeatedFields.zip(repeatedFieldTypes.unzip._1).map(x => "val "+x._1.getName.normDown+":ListBuffer["+x._2+"] = new ListBuffer["+x._2+"]")
+        val repeatedFieldDefaults = repeatedFields.zip(repeatedFieldTypes.unzip3._1).map(x => x._1.getName.normDown+":List["+x._2+"] = Nil")
+        val repeatedFieldListBuffers = repeatedFields.zip(repeatedFieldTypes.unzip3._1).map(x => "val "+x._1.getName.normDown+":ListBuffer["+x._2+"] = new ListBuffer["+x._2+"]")
 
         val name = descriptor.getName
         val javaSubClass = javaClass+"."+getContainingType(descriptor.getContainingType)+name
@@ -130,15 +130,15 @@ object ScalaProtoWrapperGenerator {
         out.println("        ) extends TypedMessage["+name+","+javaSubClass+"] {")
         out.println("    def javaMessage:"+javaSubClass+" = {")
         out.println("        val builder = "+javaSubClass+".newBuilder")
-        for ((field, isMessage) <- requiredFields.zip(requiredFieldTypes.unzip._2)++defaultFields.zip(defaultFieldTypes.unzip._2)) {
+        for ((field, isMessage) <- requiredFields.zip(requiredFieldTypes.unzip3._2)++defaultFields.zip(defaultFieldTypes.unzip3._2)) {
             val fieldName = field.getName
             out.println("        builder.set"+fieldName.normUp+"("+fieldName.normDown+(if(isMessage)".javaMessage" else "")+")")
         }
-        for ((field, isMessage) <- optionalFields.zip(optionalFieldTypes.unzip._2)) {
+        for ((field, isMessage) <- optionalFields.zip(optionalFieldTypes.unzip3._2)) {
             val fieldName = field.getName
             out.println("        "+fieldName.normDown+" foreach {x => builder.set"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+")}")
         }
-        for ((field, isMessage) <- repeatedFields.zip(repeatedFieldTypes.unzip._2)) {
+        for ((field, isMessage) <- repeatedFields.zip(repeatedFieldTypes.unzip3._2)) {
             val fieldName = field.getName
             out.println("        "+fieldName.normDown+" foreach {x => builder.add"+fieldName.normUp+"(x"+(if(isMessage)".javaMessage" else "")+")}")
         }
@@ -195,20 +195,21 @@ object ScalaProtoWrapperGenerator {
         out.println
         out.println("    def javaToScala(message:"+javaSubClass+"):"+name+" = {")
         val requiredAndDefaultGetters = new ListBuffer[String]
-        for ((field, (typeName, isMessage)) <- requiredFields.zip(requiredFieldTypes)++defaultFields.zip(defaultFieldTypes)) {
+        for ((field, (typeName, isMessage, _)) <- requiredFields.zip(requiredFieldTypes)++defaultFields.zip(defaultFieldTypes)) {
             val fieldName = field.getName
             requiredAndDefaultGetters+=((if (isMessage)typeName+".javaToScala(" else "")+"message.get"+fieldName.normUp+(if (isMessage) ")" else ""))
         }
         val optionalGetters = new ListBuffer[String]
-        for ((field, (typeName, isMessage)) <- optionalFields.zip(optionalFieldTypes)) {
+        for ((field, (typeName, isMessage, _)) <- optionalFields.zip(optionalFieldTypes)) {
             val fieldName = field.getName
             val upcase = fieldName.normUp
             optionalGetters+=("(if (message.has"+upcase+") Some("+(if (isMessage) typeName+".javaToScala(" else "")+"message.get"+upcase+")"+(if (isMessage) ")" else "")+" else None)")
         }
         val repeatedGetters = new ListBuffer[String]
-        for ((field, (typeName, isMessage)) <- repeatedFields.zip(repeatedFieldTypes)) {
+        for ((field, (typeName, isMessage, primConvert)) <- repeatedFields.zip(repeatedFieldTypes)) {
             val fieldName = field.getName
-            repeatedGetters+=("(message.get"+fieldName.normUp+"List.asScala"+(if (isMessage) " map { "+typeName+".javaToScala(_) })" else ")")+".toList")
+            val conversion = if (isMessage) ".map("+typeName+".javaToScala)" else if (primConvert.isDefined) ".map(_."+primConvert.get+")" else ""
+            repeatedGetters+="message.get"+fieldName.normUp+"List.asScala"+conversion+".toList"
         }
         val spaces2 = " "*(name.length+13)
         out.println("        new "+name+"("+(requiredAndDefaultGetters++optionalGetters++repeatedGetters).mkString(",\n"+spaces2)+"\n        )")
@@ -253,7 +254,7 @@ object ScalaProtoWrapperGenerator {
         stringWriter.toString
     }
 
-    def getFieldTypes(fields:List[FieldDescriptor], javaClass:String):List[(String, Boolean)] = {
+    def getFieldTypes(fields:List[FieldDescriptor], javaClass:String):List[(String, Boolean, Option[String])] = {
         fields.map(field => getTypeString(field, javaClass))
     }
 
@@ -265,21 +266,21 @@ object ScalaProtoWrapperGenerator {
         if (descriptor != null) getContainingType(descriptor.getContainingType)+descriptor.getName+"." else ""
     }
 
-    def getTypeString(field:FieldDescriptor, javaClass:String):(String,Boolean) = {
+    def getTypeString(field:FieldDescriptor, javaClass:String):(String,Boolean,Option[String]) = {
         field.getJavaType match {
-            case JavaType.BOOLEAN => ("Boolean", false)
-            case JavaType.BYTE_STRING => ("ByteString", false)
-            case JavaType.DOUBLE => ("Double", false)
+            case JavaType.BOOLEAN => ("Boolean", false, Some("booleanValue"))
+            case JavaType.BYTE_STRING => ("ByteString", false, None)
+            case JavaType.DOUBLE => ("Double", false, Some("toDouble"))
             case JavaType.ENUM =>
                 val enumType = field.getEnumType
-                (getContainingType(enumType.getContainingType)+enumType.getName, true)
-            case JavaType.FLOAT => ("Float", false)
-            case JavaType.INT => ("Int", false)
-            case JavaType.LONG => ("Long", false)
+                (getContainingType(enumType.getContainingType)+enumType.getName, true, None)
+            case JavaType.FLOAT => ("Float", false, Some("toFloat"))
+            case JavaType.INT => ("Int", false, Some("toInt"))
+            case JavaType.LONG => ("Long", false, Some("toLong"))
             case JavaType.MESSAGE =>
                 val mType = field.getMessageType
-                (getContainingType(mType.getContainingType)+mType.getName, true)
-            case JavaType.STRING => ("String", false)
+                (getContainingType(mType.getContainingType)+mType.getName, true, None)
+            case JavaType.STRING => ("String", false, None)
         }
     }
 

@@ -6,7 +6,7 @@ object ScalaProtoBufBuild extends Build {
   lazy val mainSettings: Seq[Project.Setting[_]] = Defaults.defaultSettings ++ Seq(
   organization := "com.jeffplaisance",
   name := "scala-protobuf",
-  version := "0.4",
+  version := "0.5",
   scalaVersion := "2.10.3",
   crossVersion := CrossVersion.binary,
   publishTo := Some(Resolver.file("Github Pages", Path.userHome / "git" / "dimbleby.github.com" / "maven" asFile)(Patterns(true, Resolver.mavenStyleBasePattern))),
