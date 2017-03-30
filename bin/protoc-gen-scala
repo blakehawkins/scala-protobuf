@@ -14,7 +14,7 @@ if __name__ == "__main__":
     SCALA_HOME = os.environ['SCALA_HOME']
     CLASSPATH  = os.path.join(SCALA_HOME, 'lib', 'scala-library.jar')
 
-    for _, _, fileList in os.walk(os.path.join(SCRIPTPATH, "..")):
+    for _, _, fileList in os.walk(os.path.join(SCRIPTPATH, b"..")):
         for fname in fileList:
             if fname[-4:] == ".jar":
                 CLASSPATH = CLASSPATH + fname
