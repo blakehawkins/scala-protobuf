@@ -19,9 +19,9 @@ if __name__ == "__main__":
             if fname[-4:] == ".jar":
                 CLASSPATH = CLASSPATH + fname
 
-    with open('/data/bdh/scala-protobuf-wrapper.log', 'w') as log:
-        log.write(CLASSPATH)
-        log.write(java_class_name)
+    with open('scala-protobuf-wrapper.log', 'w') as log:
+        log.write("{}\n".format(CLASSPATH))
+        log.write("{}\n".format(java_class_name))
 
     subprocess.call(['java', '-Xmx512M', '-cp', CLASSPATH, java_class_name])
 
